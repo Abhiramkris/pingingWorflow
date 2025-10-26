@@ -1,0 +1,99 @@
+name: Ping All Services
+
+on:
+  schedule:
+    - cron: '*/15 * * * *' # every 15 minutes
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  ping-everything:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl postgresql-client mysql-client
+
+      - name: Ping Render and API Endpoints
+        run: |
+          echo "🌐 Pinging Web Endpoints..."
+          for url in \
+            "https://your-render-frontend.onrender.com" \
+            "https://your-render-api.onrender.com/api/health" \
+            "https://another-service.com/ping" \
+            "http://203.0.113.45/status"; do
+              echo "Checking $url"
+              code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+              echo "→ Status: $code"
+              [ "$code" = "200" ] || echo "❌ $url failed with $code"
+          done
+          echo "✅ Web endpoint checks done."
+
+      - name: Ping PostgreSQL Databases
+        env:
+          PG1_HOST: ${{ secrets.PG1_HOST }}
+          PG1_PORT: ${{ secrets.PG1_PORT }}
+          PG1_USER: ${{ secrets.PG1_USER }}
+          PG1_PASS: ${{ secrets.PG1_PASS }}
+          PG1_NAME: ${{ secrets.PG1_NAME }}
+
+          PG2_HOST: ${{ secrets.PG2_HOST }}
+          PG2_PORT: ${{ secrets.PG2_PORT }}
+          PG2_USER: ${{ secrets.PG2_USER }}
+          PG2_PASS: ${{ secrets.PG2_PASS }}
+          PG2_NAME: ${{ secrets.PG2_NAME }}
+        run: |
+          echo "🐘 Checking PostgreSQL Databases..."
+          declare -A DBLIST=(
+            ["DB1"]="$PG1_HOST:$PG1_PORT:$PG1_USER:$PG1_PASS:$PG1_NAME"
+            ["DB2"]="$PG2_HOST:$PG2_PORT:$PG2_USER:$PG2_PASS:$PG2_NAME"
+          )
+          for db in "${!DBLIST[@]}"; do
+            IFS=":" read host port user pass name <<< "${DBLIST[$db]}"
+            echo "Checking $db ($host)..."
+            PGPASSWORD=$pass psql -h $host -p $port -U $user -d $name -c "SELECT NOW();" \
+              && echo "✅ $db OK" || echo "❌ $db failed"
+          done
+
+      - name: Ping MySQL Databases
+        env:
+          MYSQL1_HOST: ${{ secrets.MYSQL1_HOST }}
+          MYSQL1_PORT: ${{ secrets.MYSQL1_PORT }}
+          MYSQL1_USER: ${{ secrets.MYSQL1_USER }}
+          MYSQL1_PASS: ${{ secrets.MYSQL1_PASS }}
+          MYSQL1_NAME: ${{ secrets.MYSQL1_NAME }}
+
+          MYSQL2_HOST: ${{ secrets.MYSQL2_HOST }}
+          MYSQL2_PORT: ${{ secrets.MYSQL2_PORT }}
+          MYSQL2_USER: ${{ secrets.MYSQL2_USER }}
+          MYSQL2_PASS: ${{ secrets.MYSQL2_PASS }}
+          MYSQL2_NAME: ${{ secrets.MYSQL2_NAME }}
+        run: |
+          echo "🦦 Checking MySQL Databases..."
+          declare -A MYLIST=(
+            ["MySQL1"]="$MYSQL1_HOST:$MYSQL1_PORT:$MYSQL1_USER:$MYSQL1_PASS:$MYSQL1_NAME"
+            ["MySQL2"]="$MYSQL2_HOST:$MYSQL2_PORT:$MYSQL2_USER:$MYSQL2_PASS:$MYSQL2_NAME"
+          )
+          for db in "${!MYLIST[@]}"; do
+            IFS=":" read host port user pass name <<< "${MYLIST[$db]}"
+            echo "Checking $db ($host)..."
+            mysql -h $host -P $port -u $user -p$pass -e "USE $name; SELECT NOW();" \
+              && echo "✅ $db OK" || echo "❌ $db failed"
+          done
+
+      - name: Ping Private IP or Local Endpoints
+        run: |
+          echo "🏠 Checking IP-based Services..."
+          for ip in \
+            "http://192.168.0.100:8080/health" \
+            "http://10.0.0.25:5000/api/ping"; do
+              echo "Pinging $ip"
+              code=$(curl -s -o /dev/null -w "%{http_code}" "$ip")
+              echo "→ Status: $code"
+              [ "$code" = "200" ] || echo "❌ $ip failed"
+          done
+          echo "✅ IP endpoint checks done."
