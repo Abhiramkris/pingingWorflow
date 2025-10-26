@@ -24,8 +24,7 @@ jobs:
           for url in \
             "https://scanify.onrender.com" \
             "https://retechnox.in" \
-            "https://movement-science.com" \
-            "http://203.0.113.45/status"; do
+            "https://movement-science.com" ; do
               echo "Checking $url"
               code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
               echo "→ Status: $code"
