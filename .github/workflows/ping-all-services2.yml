@@ -1,1 +1,36 @@
 
+name: Ping All Services
+
+on:
+  schedule:
+    - cron: '*/8 * * * *' # every 15 minutes
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  ping-everything:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl postgresql-client mysql-client
+
+      - name: Ping Render and API Endpoints
+        run: |
+          echo "🌐 Pinging Web Endpoints..."
+          for url in \
+            "https://scanify.onrender.com" \
+            "https://retechnox.in" \
+            "https://movement-science.com" ; do
+              echo "Checking $url"
+              code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+              echo "→ Status: $code"
+              [ "$code" = "200" ] || echo "❌ $url failed with $code"
+          done
+          echo "✅ Web endpoint checks done."
+
+      
